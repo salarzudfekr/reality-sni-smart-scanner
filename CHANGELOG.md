@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.3.1 - 2026-06-26
+
+### Fixed
+
+- Termux quick installer now prefers `$PREFIX/bin` when writable, so `reality-sni-smart` works immediately after installation.
+- Installer now falls back to `$HOME/.local/bin` and updates the user shell profile when needed.
+
+### Changed
+
+- Installer downloads `README.fa.md` and `domains.example.txt` too.
+
 ## v1.3.0 - 2026-06-26
 
 ### Added

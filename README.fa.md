@@ -38,6 +38,8 @@ curl -fsSL https://raw.githubusercontent.com/salarzudfekr/reality-sni-smart-scan
 ```bash
 reality-sni-smart
 ```
+نکته نصب: در Termux اگر ممکن باشد دستور داخل `$PREFIX/bin` نصب می‌شود تا `reality-sni-smart` بلافاصله بعد از نصب کار کند.
+
 
 اگر دستور پیدا نشد، مستقیم اجرا کن:
 
@@ -206,7 +208,7 @@ analysis_<timestamp>.json
 
 ## نسخه
 
-نسخه فعلی: `v1.3.0`
+نسخه فعلی: `v1.3.1`
 
 ## لایسنس
 

@@ -38,6 +38,8 @@ Then run:
 ```bash
 reality-sni-smart
 ```
+Installer note: on Termux, the command is installed into `$PREFIX/bin` when possible so `reality-sni-smart` works immediately after installation.
+
 
 If the command is not found, run it directly:
 
@@ -206,7 +208,7 @@ Use these as candidates only. Final validation should still be done with your re
 
 ## Version
 
-Current release: `v1.3.0`
+Current release: `v1.3.1`
 
 ## License
 
