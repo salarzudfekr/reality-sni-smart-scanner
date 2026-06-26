@@ -18,6 +18,8 @@ A Termux-friendly smart SNI scanner for Xray REALITY. It probes candidate domain
 - Expanded built-in REALITY candidate subdomain list
 - Domain categories, risk labels, HTTP status codes, and explainable `reason` output
 - `--category`, `--min-grade`, and `export-domains` helpers
+- Latest-only active scan behavior: old scans for the same network/profile are deleted by default
+- `status`, `analyze`, and `clean-scans` commands
 
 ## Requirements
 
@@ -139,6 +141,7 @@ Options:
   --raw                       Save per-attempt raw probe CSV
   --category CATEGORY          Scan only one category: safe, cdn, dev, dns, education, productivity, streaming, social, other, all
   --min-grade A|B|C|D|F        Keep only results with this grade or better
+  --keep-history                Keep older scans for the same network/profile
 ```
 
 ## Built-in Categories
@@ -151,6 +154,20 @@ The built-in domains are classified into categories such as `safe`, `cdn`, `dev`
 - `reason` explaining the grade
 
 A full editable domain list can be exported with `export-domains`.
+
+## Active Scan Behavior
+
+By default, each new scan deletes older outputs for the same `network + profile`. This keeps option 5 / `analyze` based on your latest active scans instead of stale history.
+
+Useful commands:
+
+```bash
+python reality_sni_smart.py status
+python reality_sni_smart.py analyze --profile deep --min-networks 2
+python reality_sni_smart.py clean-scans
+```
+
+If you want to keep older files for a special test, add `--keep-history` to `scan`.
 
 ## Output Files
 
@@ -208,7 +225,7 @@ Use these as candidates only. Final validation should still be done with your re
 
 ## Version
 
-Current release: `v1.3.1`
+Current release: `v1.4.0`
 
 ## License
 

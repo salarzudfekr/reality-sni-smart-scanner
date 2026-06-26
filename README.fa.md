@@ -18,6 +18,8 @@
 - لیست داخلی گسترده‌تر از subdomainهای مناسب تست REALITY
 - دسته‌بندی دامنه، برچسب ریسک، کد وضعیت HTTP و ستون توضیحی `reason`
 - گزینه‌های `--category`، `--min-grade` و دستور `export-domains`
+- رفتار latest-only: نتایج قدیمی همان network/profile به‌صورت پیش‌فرض حذف می‌شوند
+- دستورهای `status`، `analyze` و `clean-scans`
 
 ## پیش‌نیازها
 
@@ -139,6 +141,7 @@ Options:
   --raw                       ذخیره CSV خام از هر تلاش
   --category CATEGORY          اسکن فقط یک دسته: safe, cdn, dev, dns, education, productivity, streaming, social, other, all
   --min-grade A|B|C|D|F        نگه داشتن فقط نتیجه‌هایی با این grade یا بهتر
+  --keep-history                نگه داشتن نتایج قدیمی همان network/profile
 ```
 
 ## دسته‌بندی‌های داخلی
@@ -151,6 +154,20 @@ Options:
 - `reason` برای توضیح دلیل grade
 
 با دستور `export-domains` می‌توانی کل لیست داخلی را خروجی بگیری و ویرایش کنی.
+
+## رفتار اسکن فعال
+
+به‌صورت پیش‌فرض، هر اسکن جدید خروجی‌های قدیمی همان `network + profile` را حذف می‌کند. بنابراین گزینه ۵ / دستور `analyze` بر اساس آخرین اسکن‌های فعال کار می‌کند، نه تاریخچه قدیمی.
+
+دستورهای کاربردی:
+
+```bash
+python reality_sni_smart.py status
+python reality_sni_smart.py analyze --profile deep --min-networks 2
+python reality_sni_smart.py clean-scans
+```
+
+اگر برای تست خاصی خواستی فایل‌های قدیمی نگه داشته شوند، به scan گزینه `--keep-history` بده.
 
 ## فایل‌های خروجی
 
@@ -208,7 +225,7 @@ analysis_<timestamp>.json
 
 ## نسخه
 
-نسخه فعلی: `v1.3.1`
+نسخه فعلی: `v1.4.0`
 
 ## لایسنس
 

@@ -2,7 +2,7 @@ import argparse, csv, json, os, socket, ssl, time, statistics, concurrent.future
 from datetime import datetime
 from urllib.parse import urlparse
 
-VERSION = "1.3.1"
+VERSION = "1.4.0"
 SCAN_DIR = "sni_scans"
 DEFAULT_MAX_IPS = 3
 
@@ -520,7 +520,90 @@ def print_summary(results):
     print(f"\nSummary: total={total} ok={ok} failed={failed} grades={grades}")
 
 
-def run_scan(network, profile=None, max_ips=DEFAULT_MAX_IPS, domains=None, raw=False, interactive=True, min_grade=None):
+def scan_file_meta(path):
+    name = os.path.basename(path)
+    if not name.endswith(".csv") or name.endswith("_raw.csv") or name.startswith("analysis_"):
+        return None
+    stem = name[:-4]
+    parts = stem.split("_")
+    if len(parts) < 4:
+        return None
+    network = parts[0]
+    profile = parts[1]
+    timestamp = "_".join(parts[2:4])
+    return {"path": path, "network": network, "profile": profile, "timestamp": timestamp}
+
+
+def related_scan_outputs(csv_path):
+    base = csv_path[:-4] if csv_path.endswith(".csv") else csv_path
+    return [csv_path, base + ".json", base + "_raw.csv"]
+
+
+def cleanup_old_scans(network, profile_name, keep_history=False):
+    if keep_history:
+        return 0
+    os.makedirs(SCAN_DIR, exist_ok=True)
+    profile = profile_name.lower()
+    removed = 0
+    for file in scan_files():
+        meta = scan_file_meta(file)
+        if not meta or meta["network"] != network or meta["profile"] != profile:
+            continue
+        for path in related_scan_outputs(file):
+            if os.path.exists(path):
+                os.remove(path)
+                removed += 1
+    return removed
+
+
+def clean_scans(keep_latest=True):
+    os.makedirs(SCAN_DIR, exist_ok=True)
+    files = scan_files()
+    grouped = {}
+    for file in files:
+        meta = scan_file_meta(file)
+        if not meta:
+            continue
+        grouped.setdefault((meta["network"], meta["profile"]), []).append(meta)
+
+    removed = 0
+    for metas in grouped.values():
+        metas.sort(key=lambda m: m["timestamp"], reverse=True)
+        stale = metas[1:] if keep_latest else metas
+        for meta in stale:
+            for path in related_scan_outputs(meta["path"]):
+                if os.path.exists(path):
+                    os.remove(path)
+                    removed += 1
+    print(f"Cleaned old scan outputs: {removed}")
+    return removed
+
+
+def active_scan_status():
+    metas = []
+    for file in scan_files():
+        meta = scan_file_meta(file)
+        if meta:
+            metas.append(meta)
+    metas.sort(key=lambda m: (m["network"], m["profile"]))
+    if not metas:
+        print("No active scan files found.")
+        return metas
+    print("Active scans:")
+    for meta in metas:
+        print(f"- {meta['network']:<12} {meta['profile']:<8} {meta['timestamp']:<16} {meta['path']}")
+    return metas
+
+
+def suggest_next_step(results):
+    networks = sorted({r.get("network") for r in results if r.get("network")})
+    if len(networks) < 2:
+        print("\nNext: scan another network, then use option 5 to find shared SNI candidates.")
+    else:
+        print("\nNext: use option 5 to find shared SNI candidates from active scans.")
+
+
+def run_scan(network, profile=None, max_ips=DEFAULT_MAX_IPS, domains=None, raw=False, interactive=True, min_grade=None, keep_history=False):
     clear()
     title()
     os.makedirs(SCAN_DIR, exist_ok=True)
@@ -531,6 +614,10 @@ def run_scan(network, profile=None, max_ips=DEFAULT_MAX_IPS, domains=None, raw=F
 
     if profile is None:
         profile = customize(choose_profile())
+    archived = cleanup_old_scans(network, profile["name"].lower(), keep_history=keep_history)
+    if archived:
+        print(f"Removed old scan outputs for {network}/{profile['name'].lower()}: {archived}")
+
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     output = f"{SCAN_DIR}/{network}_{profile['name'].lower()}_{ts}.csv"
 
@@ -576,6 +663,7 @@ def run_scan(network, profile=None, max_ips=DEFAULT_MAX_IPS, domains=None, raw=F
     print(f"Saved JSON: {json_output}")
     if raw_output:
         print(f"Saved raw probes: {raw_output}")
+    suggest_next_step(results)
     if interactive:
         pause()
     return output
@@ -615,42 +703,48 @@ def row_avg(rows, key):
     return statistics.mean(values) if values else None
 
 
-def analyze():
+def analyze(selected_files=None, min_networks=None, profile_filter=None, interactive=True):
     clear()
     title()
-    files = scan_files()
+    files = selected_files or scan_files()
 
     if len(files) < 2:
         print("At least two scan files are required for shared SNI analysis.")
-        pause()
+        if interactive:
+            pause()
         return
 
-    print("Available scan files:\n")
-    for i, f in enumerate(files, 1):
-        print(f"{i}. {f}")
+    if interactive:
+        print("Active scan files used for shared analysis:\n")
+        for i, f in enumerate(files, 1):
+            print(f"{i}. {f}")
+        profile_raw = input("\nAnalyze which profile? [deep/normal/all] Default deep: ").strip().lower()
+        profile_filter = profile_raw or profile_filter or "deep"
+        min_raw = input("Minimum shared networks? Default 2: ").strip()
+        min_networks = int(min_raw) if min_raw else 2
+    else:
+        profile_filter = profile_filter or "deep"
+        min_networks = min_networks or 2
 
-    choice = input("\nAnalyze all files? [Y/n]: ").strip().lower()
     selected = files
-
-    if choice == "n":
-        raw = input("Enter file numbers separated by spaces, e.g. 1 2 4: ").strip()
-        idxs = []
-        for x in raw.split():
-            try:
-                idx = int(x) - 1
-                if 0 <= idx < len(files):
-                    idxs.append(idx)
-            except Exception:
-                pass
-        selected = [files[i] for i in idxs]
+    if profile_filter and profile_filter != "all":
+        selected = [f for f in selected if (scan_file_meta(f) or {}).get("profile") == profile_filter]
 
     if len(selected) < 2:
-        print("At least two files must be selected.")
-        pause()
+        print("At least two active scan files are required for shared SNI analysis.")
+        if interactive:
+            pause()
         return
 
-    min_raw = input("Minimum shared networks? Default 2: ").strip()
-    min_networks = int(min_raw) if min_raw else 2
+    networks_for_selected = sorted({(scan_file_meta(f) or {}).get("network") for f in selected if scan_file_meta(f)})
+    print(f"\nAnalysis input: {len(selected)} files from {len(networks_for_selected)} networks, profile={profile_filter}, min_networks={min_networks}")
+    for f in selected:
+        print(f"- {f}")
+    if len(networks_for_selected) < 2:
+        print("Only one active network found. Shared analysis needs at least 2 networks.")
+        if interactive:
+            pause()
+        return
 
     rows = []
     for file in selected:
@@ -751,7 +845,8 @@ def analyze():
 
     if not output_rows:
         print("No shared SNI candidates found with the current condition.")
-        pause()
+        if interactive:
+            pause()
         return
 
     print("Best shared and stable SNI candidates:")
@@ -778,7 +873,8 @@ def analyze():
 
     print(f"\nAnalysis saved CSV: {out}")
     print(f"Analysis saved JSON: {json_out}")
-    pause()
+    if interactive:
+        pause()
 
 
 def self_test(interactive=True):
@@ -868,10 +964,17 @@ def parse_args():
     scan.add_argument("--raw", action="store_true", help="Save per-attempt raw probe CSV")
     scan.add_argument("--category", choices=sorted(CATEGORY_RULES.keys()) + ["other", "all"], default="all", help="Scan only a domain category")
     scan.add_argument("--min-grade", choices=list(GRADE_RANK.keys()), help="Keep only results with this grade or better")
+    scan.add_argument("--keep-history", action="store_true", help="Do not delete older scans for the same network/profile")
 
     export_cmd = sub.add_parser("export-domains", help="Export the built-in domain list")
     export_cmd.add_argument("--output", default="domains.example.txt")
 
+    analyze_cmd = sub.add_parser("analyze", help="Analyze active shared SNI candidates")
+    analyze_cmd.add_argument("--profile", choices=["deep", "normal", "all"], default="deep")
+    analyze_cmd.add_argument("--min-networks", type=int, default=2)
+
+    sub.add_parser("status", help="Show active scan files")
+    sub.add_parser("clean-scans", help="Delete old scans, keeping latest per network/profile")
     sub.add_parser("self-test", help="Run self-test")
     sub.add_parser("menu", help="Open interactive menu")
     return parser.parse_args()
@@ -887,9 +990,15 @@ def cli():
         domains = filter_domains_by_category(domains, args.category)
         if args.limit:
             domains = domains[:args.limit]
-        run_scan(args.network, profile, max(1, args.max_ips), domains, args.raw, interactive=False, min_grade=args.min_grade)
+        run_scan(args.network, profile, max(1, args.max_ips), domains, args.raw, interactive=False, min_grade=args.min_grade, keep_history=args.keep_history)
     elif args.command == "export-domains":
         export_domains(args.output)
+    elif args.command == "analyze":
+        analyze(min_networks=args.min_networks, profile_filter=args.profile, interactive=False)
+    elif args.command == "status":
+        active_scan_status()
+    elif args.command == "clean-scans":
+        clean_scans()
     elif args.command == "self-test":
         self_test(interactive=False)
     else:
@@ -907,6 +1016,8 @@ def menu():
         print("5. Show shared SNI candidates")
         print("6. Show saved scan files")
         print("7. Run self-test and recommendations")
+        print("8. Show active scan status")
+        print("9. Clean old scan files")
         print("0. Exit\n")
 
         choice = input("Select an option: ").strip()
@@ -925,6 +1036,10 @@ def menu():
             show_files()
         elif choice == "7":
             self_test()
+        elif choice == "8":
+            clear(); title(); active_scan_status(); pause()
+        elif choice == "9":
+            clear(); title(); clean_scans(); pause()
         elif choice == "0":
             print("Exit.")
             break

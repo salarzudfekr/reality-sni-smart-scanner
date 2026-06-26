@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.4.0 - 2026-06-26
+
+### Added
+
+- Latest-only active scan workflow: old outputs for the same network/profile are deleted by default before a new scan is saved.
+- `--keep-history` to preserve older outputs when needed.
+- `status` command and menu option to show active scan files.
+- `clean-scans` command and menu option to delete old scan files, keeping the latest per network/profile.
+- Non-interactive `analyze` command with `--profile` and `--min-networks`.
+- Shared analysis now prints the exact input files and warns when fewer than two active networks are available.
+- Post-scan next-step suggestions.
+
 ## v1.3.1 - 2026-06-26
 
 ### Fixed
