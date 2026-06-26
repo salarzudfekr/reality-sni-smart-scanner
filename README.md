@@ -15,6 +15,9 @@ A Termux-friendly smart SNI scanner for Xray REALITY. It probes candidate domain
 - Shared SNI analysis across multiple network scans
 - REALITY-oriented scoring with success rate, p95, jitter, TLS 1.3 rate, and reputation adjustment
 - `reality_grade` output from A to F
+- Expanded built-in REALITY candidate subdomain list
+- Domain categories, risk labels, HTTP status codes, and explainable `reason` output
+- `--category`, `--min-grade`, and `export-domains` helpers
 
 ## Requirements
 
@@ -104,6 +107,18 @@ Open the old numeric menu explicitly:
 ```bash
 python reality_sni_smart.py menu
 ```
+Export the built-in domain list:
+
+```bash
+python reality_sni_smart.py export-domains --output domains.example.txt
+```
+
+Scan only safer enterprise-style candidates and keep B-or-better results:
+
+```bash
+python reality_sni_smart.py scan --network mci --profile deep --category safe --min-grade B --max-ips 3 --raw
+```
+
 
 ## CLI Options
 
@@ -120,7 +135,20 @@ Options:
   --domains DOMAIN ...        Scan only these domains
   --limit N                   Limit loaded built-in domains for quick tests
   --raw                       Save per-attempt raw probe CSV
+  --category CATEGORY          Scan only one category: safe, cdn, dev, dns, education, productivity, streaming, social, other, all
+  --min-grade A|B|C|D|F        Keep only results with this grade or better
 ```
+
+## Built-in Categories
+
+The built-in domains are classified into categories such as `safe`, `cdn`, `dev`, `dns`, `education`, `productivity`, `streaming`, `social`, and `other`. Each result also includes:
+
+- `category`
+- `risk_label`
+- `http_status_code`
+- `reason` explaining the grade
+
+A full editable domain list can be exported with `export-domains`.
 
 ## Output Files
 
@@ -178,7 +206,7 @@ Use these as candidates only. Final validation should still be done with your re
 
 ## Version
 
-Current release: `v1.2.0`
+Current release: `v1.3.0`
 
 ## License
 

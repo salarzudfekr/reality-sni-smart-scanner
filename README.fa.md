@@ -15,6 +15,9 @@
 - تحلیل SNIهای مشترک بین چند شبکه
 - امتیازدهی مناسب REALITY بر اساس success rate، p95، jitter، TLS 1.3 و reputation
 - خروجی `reality_grade` از A تا F
+- لیست داخلی گسترده‌تر از subdomainهای مناسب تست REALITY
+- دسته‌بندی دامنه، برچسب ریسک، کد وضعیت HTTP و ستون توضیحی `reason`
+- گزینه‌های `--category`، `--min-grade` و دستور `export-domains`
 
 ## پیش‌نیازها
 
@@ -104,6 +107,18 @@ python reality_sni_smart.py self-test
 ```bash
 python reality_sni_smart.py menu
 ```
+خروجی گرفتن از لیست داخلی دامنه‌ها:
+
+```bash
+python reality_sni_smart.py export-domains --output domains.example.txt
+```
+
+اسکن فقط candidateهای امن‌تر و نگه داشتن نتایج B یا بهتر:
+
+```bash
+python reality_sni_smart.py scan --network mci --profile deep --category safe --min-grade B --max-ips 3 --raw
+```
+
 
 ## گزینه‌های CLI
 
@@ -120,7 +135,20 @@ Options:
   --domains DOMAIN ...        فقط همین دامنه‌ها را اسکن کن
   --limit N                   محدود کردن تعداد دامنه‌های داخلی برای تست سریع
   --raw                       ذخیره CSV خام از هر تلاش
+  --category CATEGORY          اسکن فقط یک دسته: safe, cdn, dev, dns, education, productivity, streaming, social, other, all
+  --min-grade A|B|C|D|F        نگه داشتن فقط نتیجه‌هایی با این grade یا بهتر
 ```
+
+## دسته‌بندی‌های داخلی
+
+دامنه‌های داخلی در دسته‌هایی مثل `safe`، `cdn`، `dev`، `dns`، `education`، `productivity`، `streaming`، `social` و `other` قرار می‌گیرند. هر نتیجه این ستون‌ها را هم دارد:
+
+- `category`
+- `risk_label`
+- `http_status_code`
+- `reason` برای توضیح دلیل grade
+
+با دستور `export-domains` می‌توانی کل لیست داخلی را خروجی بگیری و ویرایش کنی.
 
 ## فایل‌های خروجی
 
@@ -178,7 +206,7 @@ analysis_<timestamp>.json
 
 ## نسخه
 
-نسخه فعلی: `v1.2.0`
+نسخه فعلی: `v1.3.0`
 
 ## لایسنس
 

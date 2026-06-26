@@ -2,7 +2,7 @@ import argparse, csv, json, os, socket, ssl, time, statistics, concurrent.future
 from datetime import datetime
 from urllib.parse import urlparse
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 SCAN_DIR = "sni_scans"
 DEFAULT_MAX_IPS = 3
 
@@ -46,6 +46,29 @@ www.airbus.com www.boeing.com www.toyota.com www.ford.com www.bmw.com
 www.mercedes-benz.com www.tesla.com www.volvo.com www.ikea.com www.nike.com
 www.adidas.com www.puma.com www.unilever.com www.pg.com www.pepsi.com
 www.coca-cola.com www.mcdonalds.com www.starbucks.com
+
+# REALITY candidate subdomains
+play.google.com fonts.gstatic.com ajax.googleapis.com ssl.gstatic.com
+clients3.google.com clients4.google.com update.googleapis.com dl.google.com
+connectivitycheck.gstatic.com login.live.com account.microsoft.com
+res.cdn.office.net assets.msn.com r.bing.com support.apple.com
+developer.apple.com apps.apple.com itunes.apple.com www.icloud.com
+setup.icloud.com gsa.apple.com mesu.apple.com swcdn.apple.com
+images.samsung.com shop.samsung.com account.samsung.com support.samsung.com
+developers.cloudflare.com dash.cloudflare.com blog.cloudflare.com
+developer.fastly.com techdocs.akamai.com docs.oracle.com download.oracle.com
+cloud.ibm.com software.cisco.com helpx.adobe.com acrobat.adobe.com
+creativecloud.adobe.com developer.mozilla.org addons.mozilla.org support.mozilla.org
+docs.python.org pypi.org files.pythonhosted.org www.djangoproject.com
+releases.ubuntu.com archive.ubuntu.com security.ubuntu.com deb.debian.org
+security.debian.org api.github.com raw.githubusercontent.com github.githubassets.com
+avatars.githubusercontent.com objects.githubusercontent.com about.gitlab.com
+packages.gitlab.com registry.gitlab.com hub.docker.com docs.docker.com
+registry-1.docker.io auth.docker.io registry.npmjs.org download.jetbrains.com
+plugins.jetbrains.com resources.jetbrains.com support.atlassian.com api.bitbucket.org
+docs.digitalocean.com cloud.digitalocean.com cloud.mongodb.com docs.mongodb.com
+static.figma.com static.canva.com app.asana.com api.slack.com support.zoom.us
+upload.wikimedia.org meta.wikimedia.org
 """.split()
 
 RISK = {
@@ -61,6 +84,31 @@ SAFE = {
     "apple.com": 60, "ibm.com": 55, "adobe.com": 45, "cisco.com": 45,
     "intel.com": 45, "amd.com": 45,
 }
+
+CATEGORY_RULES = {
+    "safe": ["microsoft.com", "live.com", "office.com", "bing.com", "apple.com", "samsung.com", "oracle.com", "ibm.com", "cisco.com", "adobe.com", "mozilla.org", "python.org", "ubuntu.com", "debian.org"],
+    "cdn": ["cloudflare.com", "cloudflare.net", "fastly.com", "akamai.com", "google.com", "gstatic.com", "googleapis.com"],
+    "dev": ["github.com", "githubusercontent.com", "gitlab.com", "docker.com", "docker.io", "npmjs.org", "nodejs.org", "jetbrains.com", "atlassian.com", "bitbucket.org", "digitalocean.com", "mongodb.com"],
+    "dns": ["cloudflare-dns.com", "quad9.net", "dns.google", "opendns.com", "nextdns.io"],
+    "education": ["coursera.org", "edx.org", "khanacademy.org", "udemy.com", "duolingo.com", "wikipedia.org", "wikimedia.org"],
+    "productivity": ["figma.com", "canva.com", "notion.so", "trello.com", "asana.com", "slack.com", "zoom.us"],
+    "streaming": ["youtube.com", "netflix.com", "disneyplus.com", "hulu.com", "twitch.tv"],
+    "social": ["facebook.com", "instagram.com", "whatsapp.com", "meta.com"],
+}
+
+RISK_LABELS = {
+    "safe": "low",
+    "cdn": "medium",
+    "dev": "medium",
+    "dns": "medium",
+    "education": "medium",
+    "productivity": "low",
+    "streaming": "high",
+    "social": "high",
+    "other": "unknown",
+}
+
+GRADE_RANK = {"A": 1, "B": 2, "C": 3, "D": 4, "F": 5}
 
 
 def clear():
@@ -101,6 +149,57 @@ def reputation(domain):
         if r == k or domain.endswith("." + k):
             score -= v
     return score
+
+
+def domain_category(domain):
+    r = root(domain)
+    for category, suffixes in CATEGORY_RULES.items():
+        for suffix in suffixes:
+            if r == suffix or domain.endswith("." + suffix):
+                return category
+    return "other"
+
+
+def risk_label(domain):
+    return RISK_LABELS.get(domain_category(domain), "unknown")
+
+
+def http_status_code(status_line):
+    parts = (status_line or "").split()
+    if len(parts) >= 2 and parts[1].isdigit():
+        return int(parts[1])
+    return ""
+
+
+def grade_allowed(grade, min_grade):
+    if not min_grade:
+        return True
+    return GRADE_RANK.get(grade, 99) <= GRADE_RANK.get(min_grade.upper(), 99)
+
+
+def result_reason(row):
+    if row.get("status") != "OK":
+        return row.get("error") or "no successful probe"
+    bits = []
+    success = safe_float(row.get("success_rate")) or 0
+    p95 = safe_float(row.get("p95_total_ms"))
+    jitter = safe_float(row.get("jitter_ms"))
+    tls13 = safe_float(row.get("tls13_rate")) or 0
+    risk = row.get("risk_label", "unknown")
+    if success >= 100:
+        bits.append("100% success")
+    elif success >= 95:
+        bits.append("high success")
+    else:
+        bits.append("partial success")
+    if p95 is not None:
+        bits.append("low p95" if p95 <= 750 else "high p95")
+    if jitter is not None:
+        bits.append("low jitter" if jitter <= 150 else "high jitter")
+    if tls13 >= 80:
+        bits.append("TLS1.3 preferred")
+    bits.append(f"{risk} risk")
+    return ", ".join(bits)
 
 
 def reality_grade(row):
@@ -203,7 +302,7 @@ def probe(domain, ip, timeout):
     out = {
         "ok": False, "tcp_ms": None, "tls_ms": None, "http_ms": None,
         "total_ms": None, "tls_version": "", "cipher": "",
-        "http_status": "", "error": "",
+        "http_status": "", "http_status_code": "", "error": "",
     }
 
     raw = None
@@ -238,6 +337,7 @@ def probe(domain, ip, timeout):
 
         first = res.split(b"\r\n", 1)[0].decode(errors="ignore")
         out["http_status"] = first
+        out["http_status_code"] = http_status_code(first)
         out["ok"] = first.startswith("HTTP/")
         if not out["ok"]:
             out["error"] = "bad_http_response"
@@ -302,11 +402,15 @@ def summarize(domain, ip, dns_ms, probes, retries):
         "tls_version": last_ok.get("tls_version", ""),
         "cipher": last_ok.get("cipher", ""),
         "http_status": last_ok.get("http_status", ""),
+        "http_status_code": last_ok.get("http_status_code", ""),
+        "category": domain_category(domain),
+        "risk_label": risk_label(domain),
         "reputation_adjustment": rep,
         "final_score": round(final_score, 2),
         "error": errors[-1] if errors else "",
     }
     row["reality_grade"] = reality_grade(row)
+    row["reason"] = result_reason(row)
     return row
 
 
@@ -338,8 +442,8 @@ def scan_domain(domain, retries, timeout, sleep_time, max_ips=DEFAULT_MAX_IPS, r
     return best
 
 
-def print_best(results, limit=15):
-    ok = [r for r in results if r["status"] == "OK"]
+def print_best(results, limit=15, min_grade=None):
+    ok = [r for r in results if r["status"] == "OK" and grade_allowed(r.get("reality_grade"), min_grade)]
     ok.sort(key=lambda x: x["final_score"])
 
     print("\nBest raw results for this network:")
@@ -348,7 +452,7 @@ def print_best(results, limit=15):
     print("-" * 118)
 
     for i, r in enumerate(ok[:limit], 1):
-        print(f"{i:<5} {r['domain']:<28} {r['success_rate']:<7} {r['avg_total_ms']:<9} {r['p95_total_ms']:<9} {r['jitter_ms']:<9} {r['tls13_rate']:<9} {r['final_score']:<9} grade={r.get('reality_grade', '')}")
+        print(f"{i:<5} {r['domain']:<28} {r['success_rate']:<7} {r['avg_total_ms']:<9} {r['p95_total_ms']:<9} {r['jitter_ms']:<9} {r['tls13_rate']:<9} {r['final_score']:<9} grade={r.get('reality_grade', '')} cat={r.get('category', '')} reason={r.get('reason', '')}")
 
     print("\nTop REALITY configs:")
     for r in ok[:5]:
@@ -416,7 +520,7 @@ def print_summary(results):
     print(f"\nSummary: total={total} ok={ok} failed={failed} grades={grades}")
 
 
-def run_scan(network, profile=None, max_ips=DEFAULT_MAX_IPS, domains=None, raw=False, interactive=True):
+def run_scan(network, profile=None, max_ips=DEFAULT_MAX_IPS, domains=None, raw=False, interactive=True, min_grade=None):
     clear()
     title()
     os.makedirs(SCAN_DIR, exist_ok=True)
@@ -456,10 +560,17 @@ def run_scan(network, profile=None, max_ips=DEFAULT_MAX_IPS, domains=None, raw=F
                 print(f"[{done}/{len(domains)}] FAILED {r['domain']:<28} {r['error']}")
 
     results.sort(key=lambda x: x["final_score"])
+    if min_grade:
+        results = [r for r in results if grade_allowed(r.get("reality_grade"), min_grade)]
+        if not results:
+            print(f"No results matched --min-grade {min_grade}.")
+            if interactive:
+                pause()
+            return ""
 
     json_output, raw_output = save_outputs(output, results, raw_probe_rows)
 
-    print_best(results)
+    print_best(results, min_grade=min_grade)
     print_summary(results)
     print(f"\nSaved CSV: {output}")
     print(f"Saved JSON: {json_output}")
@@ -475,7 +586,7 @@ def scan_files():
     return sorted(
         os.path.join(SCAN_DIR, f)
         for f in os.listdir(SCAN_DIR)
-        if f.endswith(".csv") and not f.startswith("analysis_")
+        if f.endswith(".csv") and not f.startswith("analysis_") and not f.endswith("_raw.csv")
     )
 
 
@@ -611,6 +722,8 @@ def analyze():
             "avg_p95": round(avg_p95, 2),
             "avg_jitter": round(avg_jitter, 2),
             "avg_tls13": round(avg_tls13, 1),
+            "category": domain_category(domain),
+            "risk_label": risk_label(domain),
             "reputation_adjustment": reputation(domain),
             "combined_score": round(combined, 2),
         }
@@ -620,6 +733,14 @@ def analyze():
             "p95_total_ms": row["avg_p95"],
             "jitter_ms": row["avg_jitter"],
             "reputation_adjustment": row["reputation_adjustment"],
+        })
+        row["reason"] = result_reason({
+            "status": "OK",
+            "success_rate": row["avg_success"],
+            "p95_total_ms": row["avg_p95"],
+            "jitter_ms": row["avg_jitter"],
+            "tls13_rate": row["avg_tls13"],
+            "risk_label": row["risk_label"],
         })
         output_rows.append(row)
 
@@ -701,6 +822,21 @@ def custom_scan():
     run_scan(name)
 
 
+def filter_domains_by_category(domains, category):
+    if not category or category == "all":
+        return domains
+    return [d for d in domains if domain_category(d) == category]
+
+
+def export_domains(path="domains.example.txt"):
+    domains = load_domains()
+    with open(path, "w") as f:
+        for domain in domains:
+            f.write(domain + "\n")
+    print(f"Exported {len(domains)} domains to {path}")
+    return path
+
+
 def build_profile(name, retries=None, timeout=None, workers=None, sleep=None):
     profile = PROFILES.get(name, PROFILES["1"]).copy()
     if retries is not None:
@@ -730,6 +866,11 @@ def parse_args():
     scan.add_argument("--domains", nargs="*", help="Optional domain list instead of built-in domains")
     scan.add_argument("--limit", type=int, help="Limit loaded domains for quick tests")
     scan.add_argument("--raw", action="store_true", help="Save per-attempt raw probe CSV")
+    scan.add_argument("--category", choices=sorted(CATEGORY_RULES.keys()) + ["other", "all"], default="all", help="Scan only a domain category")
+    scan.add_argument("--min-grade", choices=list(GRADE_RANK.keys()), help="Keep only results with this grade or better")
+
+    export_cmd = sub.add_parser("export-domains", help="Export the built-in domain list")
+    export_cmd.add_argument("--output", default="domains.example.txt")
 
     sub.add_parser("self-test", help="Run self-test")
     sub.add_parser("menu", help="Open interactive menu")
@@ -743,9 +884,12 @@ def cli():
         profile = build_profile(profile_key, args.retries, args.timeout, args.workers, args.sleep)
         domains = [clean_domain(d) for d in args.domains] if args.domains else load_domains()
         domains = [d for d in domains if d]
+        domains = filter_domains_by_category(domains, args.category)
         if args.limit:
             domains = domains[:args.limit]
-        run_scan(args.network, profile, max(1, args.max_ips), domains, args.raw, interactive=False)
+        run_scan(args.network, profile, max(1, args.max_ips), domains, args.raw, interactive=False, min_grade=args.min_grade)
+    elif args.command == "export-domains":
+        export_domains(args.output)
     elif args.command == "self-test":
         self_test(interactive=False)
     else:

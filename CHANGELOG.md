@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.3.0 - 2026-06-26
+
+### Added
+
+- Expanded built-in REALITY candidate subdomain list.
+- Domain categories and `--category` filtering.
+- `--min-grade` result filtering.
+- `category`, `risk_label`, `http_status_code`, and `reason` output fields.
+- `export-domains` command and `domains.example.txt`.
+- Release asset plan for the scanner and example domain list.
+
+### Changed
+
+- Raw probe CSV files are excluded from shared-analysis file discovery.
+- Result printing now includes category and grade reason.
+
 ## v1.2.0 - 2026-06-26
 
 ### Added
