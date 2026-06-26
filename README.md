@@ -20,6 +20,38 @@ A Termux-friendly smart SNI scanner for Xray REALITY. It probes candidate domain
 - No third-party Python packages required
 - Android Termux, Linux, macOS, or Windows with Python
 
+## Quick Install
+
+### Termux / Linux / macOS
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/salarzudfekr/reality-sni-smart-scanner/main/install.sh | sh
+```
+
+Then run:
+
+```bash
+reality-sni-smart
+```
+
+If the command is not found, run it directly:
+
+```bash
+python ~/reality-sni-smart-scanner/reality_sni_smart.py
+```
+
+### Windows PowerShell
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/salarzudfekr/reality-sni-smart-scanner/main/install.ps1 | iex
+```
+
+Then run:
+
+```powershell
+python "$HOME\reality-sni-smart-scanner\reality_sni_smart.py"
+```
+
 ## Quick Start
 
 ```bash
@@ -144,7 +176,7 @@ Use these as candidates only. Final validation should still be done with your re
 
 ## Version
 
-Current release: `v1.1.0`
+Current release: `v1.2.0`
 
 ## License
 
