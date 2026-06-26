@@ -526,12 +526,23 @@ def scan_file_meta(path):
         return None
     stem = name[:-4]
     parts = stem.split("_")
-    if len(parts) < 4:
-        return None
-    network = parts[0]
-    profile = parts[1]
-    timestamp = "_".join(parts[2:4])
-    return {"path": path, "network": network, "profile": profile, "timestamp": timestamp}
+    if len(parts) >= 4:
+        return {
+            "path": path,
+            "network": parts[0],
+            "profile": parts[1],
+            "timestamp": "_".join(parts[2:4]),
+            "legacy": False,
+        }
+    if len(parts) == 3 and parts[1].isdigit() and parts[2].isdigit():
+        return {
+            "path": path,
+            "network": parts[0],
+            "profile": "legacy",
+            "timestamp": "_".join(parts[1:3]),
+            "legacy": True,
+        }
+    return None
 
 
 def related_scan_outputs(csv_path):
