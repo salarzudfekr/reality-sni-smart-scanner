@@ -1,5 +1,7 @@
 # Reality SNI Smart Scanner
 
+English | [فارسی](README.fa.md)
+
 A Termux-friendly smart SNI scanner for Xray REALITY. It probes candidate domains over IPv4/443, measures DNS/TCP/TLS/HTTP timing, scores stability, and exports CSV/JSON reports.
 
 ## Features
