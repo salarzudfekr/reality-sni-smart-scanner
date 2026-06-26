@@ -225,7 +225,7 @@ Use these as candidates only. Final validation should still be done with your re
 
 ## Version
 
-Current release: `v1.4.0`
+Current release: `v1.4.1`
 
 ## License
 

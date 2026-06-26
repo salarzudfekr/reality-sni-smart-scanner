@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.4.1 - 2026-06-26
+
+### Fixed
+
+- `clean-scans` now recognizes legacy scan filenames like `mci_YYYYMMDD_HHMMSS.csv` and `irancell_YYYYMMDD_HHMMSS.csv`.
+- Release assets now include the legacy cleanup fix.
+
 ## v1.4.0 - 2026-06-26
 
 ### Added

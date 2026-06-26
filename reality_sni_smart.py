@@ -2,7 +2,7 @@ import argparse, csv, json, os, socket, ssl, time, statistics, concurrent.future
 from datetime import datetime
 from urllib.parse import urlparse
 
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 SCAN_DIR = "sni_scans"
 DEFAULT_MAX_IPS = 3
 
